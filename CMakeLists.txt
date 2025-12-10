@@ -7,6 +7,7 @@ option(WITH_DEBUG_LOG       "Enable debug log output" OFF)
 option(WITH_HTTP            "HTTP protocol support (client/server)" ON)
 option(WITH_TLS             "Enable OpenSSL support"  ON)
 option(WITH_ENV_VARS        "Enable environment variables support in config file" ON)
+option(WITH_JUNOCASH        "Enable Juno Cash solo mining support" ON)
 
 
 include(CheckIncludeFile)
@@ -157,6 +158,12 @@ add_definitions(/DXMRIG_ALGO_CN_PICO)
 add_definitions(/DXMRIG_ALGO_CN_FEMTO)
 add_definitions(/DXMRIG_ALGO_ARGON2)
 add_definitions(/DXMRIG_ALGO_ASTROBWT)
+
+if (WITH_JUNOCASH)
+    add_definitions(/DSUPPORT_JUNOCASH)
+    list(APPEND HEADERS src/junocash/JunocashTemplate.h)
+    list(APPEND SOURCES src/junocash/JunocashTemplate.cpp)
+endif()
 
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     add_definitions(/DRAPIDJSON_SSE2)

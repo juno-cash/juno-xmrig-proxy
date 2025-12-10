@@ -256,6 +256,11 @@ void xmrig::Job::copy(const Job &other)
 
     memcpy(m_blob, other.m_blob, sizeof(m_blob));
 
+#   ifdef SUPPORT_JUNOCASH
+    memcpy(m_junoHeader, other.m_junoHeader, sizeof(m_junoHeader));
+    memcpy(m_junoTarget, other.m_junoTarget, sizeof(m_junoTarget));
+#   endif
+
 #   ifdef XMRIG_PROXY_PROJECT
     m_rawSeedHash = other.m_rawSeedHash;
     m_rawSigKey   = other.m_rawSigKey;
@@ -307,6 +312,11 @@ void xmrig::Job::move(Job &&other)
     m_poolWallet = std::move(other.m_poolWallet);
 
     memcpy(m_blob, other.m_blob, sizeof(m_blob));
+
+#   ifdef SUPPORT_JUNOCASH
+    memcpy(m_junoHeader, other.m_junoHeader, sizeof(m_junoHeader));
+    memcpy(m_junoTarget, other.m_junoTarget, sizeof(m_junoTarget));
+#   endif
 
     other.m_size        = 0;
     other.m_diff        = 0;

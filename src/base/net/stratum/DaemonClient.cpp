@@ -57,6 +57,10 @@
 #include <cassert>
 #include <random>
 
+#ifdef SUPPORT_JUNOCASH
+#include "junocash/JunocashTemplate.h"
+#endif
+
 
 namespace xmrig {
 
@@ -135,6 +139,77 @@ int64_t xmrig::DaemonClient::submit(const JobResult &result)
     if (result.jobId != m_currentJobId) {
         return -1;
     }
+
+#ifdef SUPPORT_JUNOCASH
+    if (m_coin.isValid() && m_coin == Coin::JUNO) {
+        if (!m_junoTpl) {
+            return -1;
+        }
+
+        // Build block: header (108 bytes) + nonce (32 bytes) + coinbase + transactions
+        std::vector<uint8_t> block;
+        block.reserve(140 + 4096);
+
+        // Header base (108 bytes)
+        block.insert(block.end(), m_junoTpl->header_base.begin(),
+                     m_junoTpl->header_base.begin() + 108);
+
+        // Get 32-byte nonce from result - in proxy, nonce comes as hex string
+        uint8_t nonce_bytes[32];
+        if (strlen(result.nonce) == 64) {
+            // 64-char hex = 32 bytes
+            Cvt::fromHex(nonce_bytes, 32, result.nonce, 64);
+        } else {
+            // Fallback - should not happen for Juno
+            memset(nonce_bytes, 0, 32);
+        }
+        block.insert(block.end(), nonce_bytes, nonce_bytes + 32);
+
+        // Hex-to-bytes helper
+        auto hex2bin = [](const std::string& hx) {
+            std::vector<uint8_t> o;
+            o.reserve(hx.size()/2);
+            auto v = [](char c) {
+                if(c>='0' && c<='9') return c-'0';
+                if(c>='a' && c<='f') return c-'a'+10;
+                if(c>='A' && c<='F') return c-'A'+10;
+                return 0;
+            };
+            for(size_t i=0; i+1<hx.size(); i+=2)
+                o.push_back((uint8_t)((v(hx[i])<<4)|v(hx[i+1])));
+            return o;
+        };
+
+        // Coinbase transaction
+        auto coinbase = hex2bin(m_junoTpl->coinbase_txn_hex);
+        block.insert(block.end(), coinbase.begin(), coinbase.end());
+
+        // Other transactions
+        for (const auto& txhex : m_junoTpl->txn_hex) {
+            auto tx = hex2bin(txhex);
+            block.insert(block.end(), tx.begin(), tx.end());
+        }
+
+        // Hex encode full block
+        String block_hex = Cvt::toHex(block.data(), block.size());
+
+        using namespace rapidjson;
+        Document doc(kObjectType);
+        Value params(kArrayType);
+        params.PushBack(block_hex.toJSON(), doc.GetAllocator());
+        JsonRequest::create(doc, m_sequence, "submitblock", params);
+
+#       ifdef XMRIG_PROXY_PROJECT
+        m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), result.id, 0);
+#       else
+        m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), 0, result.backend);
+#       endif
+
+        std::map<std::string, std::string> headers;
+        headers.insert({"X-Hash-Difficulty", std::to_string(result.actualDiff())});
+        return rpcSend(doc, headers);
+    }
+#endif
 
     char *data = m_blocktemplateStr.data();
 
@@ -388,6 +463,48 @@ bool xmrig::DaemonClient::parseJob(const rapidjson::Value &params, int *code)
         return false;
     };
 
+#ifdef SUPPORT_JUNOCASH
+    if (m_coin.isValid() && m_coin == Coin::JUNO) {
+        JunocashTemplate tpl;
+        m_junoTpl.reset(new JunocashTemplate());
+        if (!tpl.parse(params)) {
+            return jobError("Invalid Junocash block template");
+        }
+        *m_junoTpl = tpl;
+
+        Job job(false, Algorithm::RX_JUNO, String());
+        job.setHeight(tpl.height);
+        job.setDiff(1);  // Placeholder - could calculate from target
+        job.setJunocashHeader(tpl.header_base.data());
+        job.setJunocashTarget(tpl.target.data());
+
+        // Set seed hash (convert bytes to hex)
+        char hex[65];
+        hex[64] = '\0';
+        Cvt::toHex(hex, 64, tpl.seed_hash.data(), 32);
+        job.setSeedHash(hex);
+
+        // Set the blob for miners - the 140-byte header
+        char blob_hex[281];
+        Cvt::toHex(blob_hex, 280, tpl.header_base.data(), 140);
+        blob_hex[280] = '\0';
+        job.setBlob(blob_hex);
+
+        m_currentJobId = Cvt::toHex(Cvt::randomBytes(4));
+        job.setId(m_currentJobId);
+        m_job = std::move(job);
+        m_blocktemplateStr = String();  // Not used for Juno
+        m_prevHash = Json::getString(params, "previousblockhash");
+        m_jobSteadyMs = Chrono::steadyMSecs();
+
+        if (m_state == ConnectingState) {
+            setState(ConnectedState);
+        }
+        m_listener->onJobReceived(this, m_job, params);
+        return true;
+    }
+#endif
+
     Job job(false, m_pool.algorithm(), String());
 
     String blocktemplate = Json::getString(params, kBlocktemplateBlob);
@@ -528,6 +645,15 @@ bool xmrig::DaemonClient::parseResponse(int64_t id, const rapidjson::Value &resu
     }
 
     int code = -1;
+#ifdef SUPPORT_JUNOCASH
+    // Juno responses have "height" but no "blocktemplate_blob"
+    if (m_coin.isValid() && m_coin == Coin::JUNO && result.HasMember("height")) {
+        if (parseJob(result, &code)) {
+            return true;
+        }
+    }
+    else
+#endif
     if (result.HasMember(kBlocktemplateBlob) && parseJob(result, &code)) {
         return true;
     }
@@ -553,10 +679,18 @@ int64_t xmrig::DaemonClient::getBlockTemplate()
     auto &allocator = doc.GetAllocator();
 
     Value params(kObjectType);
-    params.AddMember("wallet_address", m_user.toJSON(), allocator);
-    params.AddMember("extra_nonce", Cvt::toHex(Cvt::randomBytes(kBlobReserveSize)).toJSON(doc), allocator);
-
-    JsonRequest::create(doc, m_sequence, "getblocktemplate", params);
+#ifdef SUPPORT_JUNOCASH
+    if (m_coin.isValid() && m_coin == Coin::JUNO) {
+        // Juno: empty params, node constructs coinbase
+        JsonRequest::create(doc, m_sequence, "getblocktemplate", params);
+    }
+    else
+#endif
+    {
+        params.AddMember("wallet_address", m_user.toJSON(), allocator);
+        params.AddMember("extra_nonce", Cvt::toHex(Cvt::randomBytes(kBlobReserveSize)).toJSON(doc), allocator);
+        JsonRequest::create(doc, m_sequence, "getblocktemplate", params);
+    }
 
     return rpcSend(doc);
 }

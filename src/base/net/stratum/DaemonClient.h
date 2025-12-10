@@ -29,6 +29,9 @@
 #include "base/tools/cryptonote/BlockTemplate.h"
 #include "base/tools/cryptonote/WalletAddress.h"
 
+#ifdef SUPPORT_JUNOCASH
+#include "junocash/JunocashTemplate.h"
+#endif
 
 #include <memory>
 
@@ -142,6 +145,10 @@ private:
 
     std::vector<char> m_ZMQSendBuf;
     std::vector<char> m_ZMQRecvBuf;
+
+#ifdef SUPPORT_JUNOCASH
+    std::unique_ptr<JunocashTemplate> m_junoTpl;
+#endif
 };
 
 
