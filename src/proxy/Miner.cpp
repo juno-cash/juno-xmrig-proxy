@@ -142,15 +142,11 @@ void xmrig::Miner::setJob(Job &job, int64_t extra_nonce)
 {
     using namespace rapidjson;
 
-    if (hasExtension(EXT_NICEHASH)) {
+    if (hasExtension(EXT_NICEHASH) && !job.isJunocash()) {
+        // Standard coins: write fixed byte at byte 3 of 4-byte nonce for NiceHash mode partitioning.
+        // Junocash is skipped because miners use the full 32-byte nonce space.
         snprintf(m_sendBuf, 4, "%02hhx", m_fixedByte);
-        if (job.isJunocash()) {
-            // Junocash: write fixed byte at byte 31 of 32-byte nonce
-            memcpy(job.rawBlob() + (job.nonceOffset() + 31) * 2, m_sendBuf, 2);
-        } else {
-            // Standard: write fixed byte at byte 3 of 4-byte nonce
-            memcpy(job.rawBlob() + (job.nonceOffset() + 3) * 2, m_sendBuf, 2);
-        }
+        memcpy(job.rawBlob() + (job.nonceOffset() + 3) * 2, m_sendBuf, 2);
     }
 
     m_diff = job.diff();

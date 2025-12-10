@@ -52,12 +52,10 @@ bool xmrig::JobResult::isCompatible(uint8_t fixedByte) const
     const size_t nonceLen = strlen(nonce);
 
     if (nonceLen == 64) {
-        // Junocash 32-byte nonce: check byte 31 (hex chars 62-63)
-        uint8_t n;
-        if (!Cvt::fromHex(&n, 1, nonce + 62, 2)) {
-            return false;
-        }
-        return n == fixedByte;
+        // Junocash 32-byte nonce: skip fixed byte check because Junocash miners
+        // use the full 32-byte nonce space and cannot preserve a fixed byte.
+        // The proxy will multiplex shares without nonce partitioning.
+        return true;
     }
 
     // Standard 4-byte nonce: check byte 3 (MSB)
