@@ -146,9 +146,10 @@ int64_t xmrig::DaemonClient::submit(const JobResult &result)
             return -1;
         }
 
-        // Build block: header (108 bytes) + nonce (32 bytes) + coinbase + transactions
+        // Build block: header (108 bytes) + nonce (32 bytes) + nSolution + tx_count + coinbase + transactions
+        // nSolution format: varint(size) + RandomX hash (32 bytes)
         std::vector<uint8_t> block;
-        block.reserve(140 + 4096);
+        block.reserve(256 + 4096);
 
         // Header base (108 bytes)
         block.insert(block.end(), m_junoTpl->header_base.begin(),
@@ -164,6 +165,38 @@ int64_t xmrig::DaemonClient::submit(const JobResult &result)
             memset(nonce_bytes, 0, 32);
         }
         block.insert(block.end(), nonce_bytes, nonce_bytes + 32);
+
+        // nSolution: varint(32) + 32-byte RandomX hash
+        // The RandomX hash is in result.result (64 hex chars = 32 bytes)
+        // Size is always 32 bytes, so varint is just 0x20
+        block.push_back(0x20);
+
+        // Get the RandomX hash from result
+        uint8_t pow_hash[32];
+        if (result.result && strlen(result.result) == 64) {
+            Cvt::fromHex(pow_hash, 32, result.result, 64);
+        } else {
+            // This should not happen - miner must provide the hash
+            memset(pow_hash, 0, 32);
+        }
+        block.insert(block.end(), pow_hash, pow_hash + 32);
+
+        // Transaction count as varint: 1 (coinbase) + number of other transactions
+        uint64_t tx_count = 1 + m_junoTpl->txn_hex.size();
+        // Encode varint
+        if (tx_count < 0xfd) {
+            block.push_back(static_cast<uint8_t>(tx_count));
+        } else if (tx_count <= 0xffff) {
+            block.push_back(0xfd);
+            block.push_back(static_cast<uint8_t>(tx_count & 0xff));
+            block.push_back(static_cast<uint8_t>((tx_count >> 8) & 0xff));
+        } else {
+            block.push_back(0xfe);
+            block.push_back(static_cast<uint8_t>(tx_count & 0xff));
+            block.push_back(static_cast<uint8_t>((tx_count >> 8) & 0xff));
+            block.push_back(static_cast<uint8_t>((tx_count >> 16) & 0xff));
+            block.push_back(static_cast<uint8_t>((tx_count >> 24) & 0xff));
+        }
 
         // Hex-to-bytes helper
         auto hex2bin = [](const std::string& hx) {
