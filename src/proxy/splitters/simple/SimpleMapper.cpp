@@ -126,6 +126,19 @@ void xmrig::SimpleMapper::submit(SubmitEvent *event)
 
     IStrategy *strategy = m_donate && m_donate->isActive() ? m_donate : m_strategy;
 
+    // Fixed upstream difficulty filtering - only apply to user pool, not donation
+    const uint64_t fixedDiff = m_controller->config()->fixedDiff();
+    if (fixedDiff > 0 && strategy != m_donate && req.actualDiff() < fixedDiff) {
+        // Share meets worker diff but not fixed upstream diff
+        // Respond OK to worker, do not forward to pool
+        if (m_miner) {
+            m_miner->success(event->request.id, "OK");
+        }
+        LOG_DEBUG("%s " CYAN("%04u ") "share filtered: diff %" PRIu64 " < fixed %" PRIu64,
+                  Tags::network(), m_id, req.actualDiff(), fixedDiff);
+        return;
+    }
+
     if (strategy) {
         strategy->submit(req);
     }
