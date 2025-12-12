@@ -77,8 +77,9 @@ static inline const std::string &usage()
     u += "\nOptions:\n";
     u += "  -b, --bind=ADDR               bind to specified address, example \"0.0.0.0:3333\"\n";
     u += "  -m, --mode=MODE               proxy mode, nicehash (default) or simple\n";
-    u += "      --custom-diff=N           override pool diff\n";
+    u += "      --custom-diff=N           override pool diff for workers\n";
     u += "      --custom-diff-stats       calculate stats using custom diff shares instead of pool shares\n";
+    u += "      --fixed-diff=N            filter shares below this diff before forwarding to pool\n";
     u += "      --reuse-timeout=N         timeout in seconds for reuse pool connections in simple mode\n";
     u += "      --no-workers              disable per worker statistics\n";
     u += "      --access-password=P       set password to restrict connections to the proxy\n";

@@ -23,6 +23,7 @@
  */
 
 
+#include <cinttypes>
 #include <cstdio>
 #include <uv.h>
 
@@ -41,6 +42,18 @@ namespace xmrig {
 static void print_mode(xmrig::Controller *controller)
 {
     Log::print(GREEN_BOLD(" * ") WHITE_BOLD("%-13s") MAGENTA_BOLD("%s"), "MODE", controller->config()->modeName());
+}
+
+
+static void print_diff(xmrig::Controller *controller)
+{
+    if (controller->config()->diff() > 0) {
+        Log::print(GREEN_BOLD(" * ") WHITE_BOLD("%-13s") CYAN_BOLD("%" PRIu64), "CUSTOM DIFF", controller->config()->diff());
+    }
+
+    if (controller->config()->fixedDiff() > 0) {
+        Log::print(GREEN_BOLD(" * ") WHITE_BOLD("%-13s") CYAN_BOLD("%" PRIu64) WHITE_BOLD(" (shares below this diff will be filtered)"), "FIXED DIFF", controller->config()->fixedDiff());
+    }
 }
 
 
@@ -81,6 +94,7 @@ void Summary::print(xmrig::Controller *controller)
 {
     controller->config()->printVersions();
     print_mode(controller);
+    print_diff(controller);
     controller->config()->pools().print();
     print_bind(controller);
     print_commands(controller);

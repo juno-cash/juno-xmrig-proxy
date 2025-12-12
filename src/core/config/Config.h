@@ -69,10 +69,12 @@ public:
     inline int reuseTimeout() const                { return m_reuseTimeout; }
     inline static IConfig *create()                { return new Config(); }
     inline uint64_t diff() const                   { return m_diff; }
+    inline uint64_t fixedDiff() const              { return m_fixedDiff; }
     inline Workers::Mode workersMode() const       { return m_workersMode; }
 
 private:
     void setCustomDiff(uint64_t diff);
+    void setFixedDiff(uint64_t diff);
     void setMode(const char *mode);
     void setWorkersMode(const rapidjson::Value &value);
 
@@ -85,6 +87,7 @@ private:
     String m_accessLog;
     String m_password;
     uint64_t m_diff             = 0;
+    uint64_t m_fixedDiff        = 0;
     Workers::Mode m_workersMode = Workers::RigID;
 };
 

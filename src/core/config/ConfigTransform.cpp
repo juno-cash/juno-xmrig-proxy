@@ -81,6 +81,7 @@ void xmrig::ConfigTransform::transform(rapidjson::Document &doc, int key, const 
         return set(doc, "workers", arg);
 
     case IConfig::CustomDiffKey: /* --custom-diff */
+    case IConfig::FixedDiffKey: /* --fixed-diff */
     case IConfig::ReuseTimeoutKey: /* --reuse-timeout */
         return transformUint64(doc, key, static_cast<uint64_t>(strtol(arg, nullptr, 10)));
 
@@ -119,6 +120,9 @@ void xmrig::ConfigTransform::transformUint64(rapidjson::Document &doc, int key, 
     switch (key) {
     case IConfig::CustomDiffKey: /* --custom-diff */
         return set(doc, "custom-diff", arg);
+
+    case IConfig::FixedDiffKey: /* --fixed-diff */
+        return set(doc, "fixed-diff", arg);
 
     case IConfig::ReuseTimeoutKey: /* --reuse-timeout */
         return set(doc, "reuse-timeout", arg);

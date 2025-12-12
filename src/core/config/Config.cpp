@@ -71,6 +71,7 @@ bool xmrig::Config::read(const IJsonReader &reader, const char *fileName)
     m_password     = reader.getString("access-password");
 
     setCustomDiff(reader.getUint64("custom-diff", m_diff));
+    setFixedDiff(reader.getUint64("fixed-diff", m_fixedDiff));
     setMode(reader.getString("mode"));
     setWorkersMode(reader.getValue("workers"));
 
@@ -130,6 +131,7 @@ void xmrig::Config::getJSON(rapidjson::Document &doc) const
     doc.AddMember(StringRef(kColors),               Log::isColors(), allocator);
     doc.AddMember("custom-diff",                    diff(), allocator);
     doc.AddMember("custom-diff-stats",              m_customDiffStats, allocator);
+    doc.AddMember("fixed-diff",                     fixedDiff(), allocator);
     doc.AddMember(StringRef(Pools::kDonateLevel),   m_pools.donateLevel(), allocator);
     doc.AddMember(StringRef(kLogFile),              m_logFile.toJSON(), allocator);
     doc.AddMember("mode",                           StringRef(modeName()), allocator);
@@ -161,6 +163,14 @@ void xmrig::Config::setCustomDiff(uint64_t diff)
 {
     if (diff >= 100 && diff < INT_MAX) {
         m_diff = diff;
+    }
+}
+
+
+void xmrig::Config::setFixedDiff(uint64_t diff)
+{
+    if (diff >= 100 && diff < INT_MAX) {
+        m_fixedDiff = diff;
     }
 }
 
