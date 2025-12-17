@@ -802,6 +802,103 @@ void xmrig::Client::parseNotification(const char *method, const rapidjson::Value
 
         return;
     }
+
+    // Handle Zcash-style mining.notify for Juno Cash (rx/juno)
+    if (strcmp(method, "mining.notify") == 0 && m_pool.algorithm() == Algorithm::RX_JUNO) {
+        if (!params.IsArray() || params.Size() < 9) {
+            if (!isQuiet()) {
+                LOG_ERR("%s " RED("invalid mining.notify: params array size %u < 9"), tag(), params.Size());
+            }
+            close();
+            return;
+        }
+
+        const auto &arr = params.GetArray();
+
+        // Validate param types
+        if (!arr[0].IsString() || !arr[1].IsString() || !arr[2].IsString() ||
+            !arr[3].IsString() || !arr[4].IsString() || !arr[5].IsString() ||
+            !arr[6].IsString() || !arr[7].IsBool() || !arr[8].IsString()) {
+            if (!isQuiet()) {
+                LOG_ERR("%s " RED("invalid mining.notify: param type mismatch"), tag());
+            }
+            close();
+            return;
+        }
+
+        Job job(has<EXT_NICEHASH>(), m_pool.algorithm(), m_rpcId);
+
+        // Parse Zcash-style params array
+        const char *jobId = arr[0].GetString();
+        const char *version = arr[1].GetString();
+        const char *prevHash = arr[2].GetString();
+        const char *merkleRoot = arr[3].GetString();
+        const char *blockCommitments = arr[4].GetString();
+        const char *timeStr = arr[5].GetString();
+        const char *bits = arr[6].GetString();
+        const bool cleanJobs = arr[7].GetBool();
+        const char *seedHash = arr[8].GetString();
+
+        (void)cleanJobs; // TODO: Handle clean_jobs to abandon old work
+
+        const uint32_t time = static_cast<uint32_t>(strtoul(timeStr, nullptr, 16));
+
+        if (!job.setId(jobId)) {
+            if (!isQuiet()) {
+                LOG_ERR("%s " RED("mining.notify: invalid job_id"), tag());
+            }
+            close();
+            return;
+        }
+
+        if (!job.setZcashJob(version, prevHash, merkleRoot, blockCommitments, time, bits)) {
+            if (!isQuiet()) {
+                LOG_ERR("%s " RED("mining.notify: failed to construct Juno Cash job"), tag());
+            }
+            close();
+            return;
+        }
+
+        if (!job.setSeedHash(seedHash)) {
+            if (!isQuiet()) {
+                LOG_ERR("%s " RED("mining.notify: invalid seed_hash"), tag());
+            }
+            close();
+            return;
+        }
+
+        // Set default difficulty if not already set
+        if (m_job.diff() > 0) {
+            job.setDiff(m_job.diff());
+        } else {
+            job.setDiff(1);
+        }
+
+        job.setClientId(m_rpcId);
+
+        if (m_job != job) {
+            m_jobs++;
+            m_job = std::move(job);
+            m_listener->onJobReceived(this, m_job, params);
+        }
+
+        return;
+    }
+
+    // Handle mining.set_difficulty for rx/juno
+    if (strcmp(method, "mining.set_difficulty") == 0 && m_pool.algorithm() == Algorithm::RX_JUNO) {
+        if (!params.IsArray() || params.Empty()) {
+            return;
+        }
+
+        const auto &arr = params.GetArray();
+        const double diff = arr[0].IsNumber() ? arr[0].GetDouble() : 0;
+        if (diff > 0) {
+            m_job.setDiff(static_cast<uint64_t>(diff));
+        }
+
+        return;
+    }
 }
 
 

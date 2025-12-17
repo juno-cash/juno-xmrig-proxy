@@ -120,6 +120,8 @@ private:
     void send(const rapidjson::Document &doc);
     void send(int size);
     void sendJob(const char *blob, const char *jobId, const char *target, const char *algo, uint64_t height, const String &seedHash, const String &signatureKey);
+    void sendMiningNotify(const Job &job, bool cleanJobs = false);
+    void sendLoginResponseOnly();
     void setState(State state);
     void shutdown(bool had_error);
     void startTLS(const char *data);

@@ -49,12 +49,31 @@ xmrig::JobResult::JobResult(int64_t id, const char *jobId, const char *nonce, co
 
 bool xmrig::JobResult::isCompatible(uint8_t fixedByte) const
 {
-    uint8_t n[4];
-    if (!Cvt::fromHex(n, sizeof(n), nonce, 8)) {
+    if (!nonce) {
         return false;
     }
 
-    return n[3] == fixedByte;
+    const size_t nonceLen = strlen(nonce);
+
+    // For 32-byte nonces (rx/juno), check first byte for miner ID
+    if (nonceLen == 64) {
+        uint8_t n[32];
+        if (!Cvt::fromHex(n, sizeof(n), nonce, 64)) {
+            return false;
+        }
+        return n[0] == fixedByte;
+    }
+
+    // Standard 4-byte nonce check
+    if (nonceLen == 8) {
+        uint8_t n[4];
+        if (!Cvt::fromHex(n, sizeof(n), nonce, 8)) {
+            return false;
+        }
+        return n[3] == fixedByte;
+    }
+
+    return false;
 }
 
 
@@ -64,5 +83,12 @@ bool xmrig::JobResult::isValid() const
         return false;
     }
 
-    return strlen(nonce) == 8 && !jobId.isNull();
+    const size_t nonceLen = strlen(nonce);
+
+    // rx/juno uses 32-byte nonces (64 hex chars), others use 4-byte (8 hex chars)
+    if (nonceLen != 8 && nonceLen != 64) {
+        return false;
+    }
+
+    return !jobId.isNull();
 }

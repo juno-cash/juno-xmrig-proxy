@@ -128,6 +128,12 @@ void xmrig::Miner::forwardJob(const Job &job, const char *algo)
     m_diff = job.diff();
     setFixedByte(job.fixedByte());
 
+    // For RX_JUNO (Zcash-style), use mining.notify format
+    if (job.algorithm() == Algorithm::RX_JUNO) {
+        sendMiningNotify(job, false);
+        return;
+    }
+
     sendJob(job.rawBlob(), job.id().data(), job.rawTarget(), algo ? algo : job.algorithm().name(), job.height(), job.rawSeedHash(), job.rawSigKey());
 }
 
@@ -141,6 +147,20 @@ void xmrig::Miner::replyWithError(int64_t id, const char *message)
 void xmrig::Miner::setJob(Job &job, int64_t extra_nonce)
 {
     using namespace rapidjson;
+
+    // For RX_JUNO (Zcash-style), use mining.notify format
+    if (job.algorithm() == Algorithm::RX_JUNO) {
+        m_diff = job.diff();
+
+        // Send login response first if this is the first job
+        if (m_state == WaitReadyState) {
+            sendLoginResponseOnly();
+        }
+
+        // Send mining.notify with the job
+        sendMiningNotify(job, false);
+        return;
+    }
 
     if (hasExtension(EXT_NICEHASH)) {
         snprintf(m_sendBuf, 4, "%02hhx", m_fixedByte);
@@ -511,6 +531,76 @@ void xmrig::Miner::sendJob(const char *blob, const char *jobId, const char *targ
         doc.AddMember("params", params, allocator);
     }
 
+    send(doc);
+}
+
+
+void xmrig::Miner::sendMiningNotify(const Job &job, bool cleanJobs)
+{
+    using namespace rapidjson;
+
+    Document doc(kObjectType);
+    auto &allocator = doc.GetAllocator();
+
+    Value params(kArrayType);
+    params.PushBack(StringRef(job.id().data()), allocator);              // job_id
+    params.PushBack(StringRef(job.rawVersion()), allocator);             // version
+    params.PushBack(StringRef(job.rawPrevHash()), allocator);            // prevhash
+    params.PushBack(StringRef(job.rawMerkleRoot()), allocator);          // merkleroot
+    params.PushBack(StringRef(job.rawBlockCommitments()), allocator);    // blockcommitments
+    params.PushBack(StringRef(job.rawTime()), allocator);                // time
+    params.PushBack(StringRef(job.rawBits()), allocator);                // bits
+    params.PushBack(cleanJobs, allocator);                               // clean_jobs
+    params.PushBack(StringRef(job.rawSeedHash().data()), allocator);     // seed_hash
+
+    doc.AddMember("id", kNullType, allocator);
+    doc.AddMember("method", "mining.notify", allocator);
+    doc.AddMember("params", params, allocator);
+
+    send(doc);
+}
+
+
+void xmrig::Miner::sendLoginResponseOnly()
+{
+    using namespace rapidjson;
+
+    Document doc(kObjectType);
+    auto &allocator = doc.GetAllocator();
+
+    doc.AddMember("jsonrpc", "2.0", allocator);
+    doc.AddMember("id", m_loginId, allocator);
+    doc.AddMember("error", kNullType, allocator);
+
+    Value result(kObjectType);
+    result.AddMember("id", m_rpcId.toJSON(), allocator);
+
+    Value extensions(kArrayType);
+
+    if (hasExtension(EXT_ALGO)) {
+        extensions.PushBack("algo", allocator);
+    }
+
+    if (hasExtension(EXT_NICEHASH)) {
+        extensions.PushBack("nicehash", allocator);
+    }
+
+    if (hasExtension(EXT_CONNECT)) {
+        extensions.PushBack("connect", allocator);
+
+#       ifdef XMRIG_FEATURE_TLS
+        extensions.PushBack("tls", allocator);
+#       endif
+    }
+
+    extensions.PushBack("keepalive", allocator);
+
+    result.AddMember("extensions", extensions, allocator);
+    result.AddMember("status", "OK", allocator);
+
+    doc.AddMember("result", result, allocator);
+
+    setState(ReadyState);
     send(doc);
 }
 

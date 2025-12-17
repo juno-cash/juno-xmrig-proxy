@@ -92,6 +92,119 @@ bool xmrig::Job::setBlob(const char *blob)
 }
 
 
+bool xmrig::Job::setZcashJob(const char *version, const char *prevHash, const char *merkleRoot,
+                             const char *blockCommitments, uint32_t time, const char *bits)
+{
+    // Construct 108-byte Juno Cash header (without nonce)
+    // Format: version(4) + prevHash(32) + merkleRoot(32) + blockCommitments(32) + time(4) + bits(4)
+    //
+    // IMPORTANT: The hash fields (prevHash, merkleRoot, blockCommitments) from pool
+    // are in DISPLAY order (big-endian). For hashing, they must be converted to INTERNAL order
+    // (little-endian), which means byte-reversing each 32-byte hash.
+
+    if (!version || !prevHash || !merkleRoot || !blockCommitments || !bits) {
+        return false;
+    }
+
+    // Store raw values for forwarding to miners
+#   ifdef XMRIG_PROXY_PROJECT
+    memset(m_rawVersion, 0, sizeof(m_rawVersion));
+    memset(m_rawPrevHash, 0, sizeof(m_rawPrevHash));
+    memset(m_rawMerkleRoot, 0, sizeof(m_rawMerkleRoot));
+    memset(m_rawBlockCommitments, 0, sizeof(m_rawBlockCommitments));
+    memset(m_rawTime, 0, sizeof(m_rawTime));
+    memset(m_rawBits, 0, sizeof(m_rawBits));
+
+    strncpy(m_rawVersion, version, sizeof(m_rawVersion) - 1);
+    strncpy(m_rawPrevHash, prevHash, sizeof(m_rawPrevHash) - 1);
+    strncpy(m_rawMerkleRoot, merkleRoot, sizeof(m_rawMerkleRoot) - 1);
+    strncpy(m_rawBlockCommitments, blockCommitments, sizeof(m_rawBlockCommitments) - 1);
+    snprintf(m_rawTime, sizeof(m_rawTime), "%08x", time);
+    strncpy(m_rawBits, bits, sizeof(m_rawBits) - 1);
+#   endif
+
+    // Clear the blob
+    memset(m_blob, 0, sizeof(m_blob));
+    size_t pos = 0;
+
+    // Parse version (4 bytes, little-endian)
+    uint32_t ver = static_cast<uint32_t>(strtoul(version, nullptr, 16));
+    memcpy(m_blob + pos, &ver, 4);
+    pos += 4;
+
+    // Parse prevHash (32 bytes) - must reverse from display to internal order
+    if (strlen(prevHash) != 64) {
+        return false;
+    }
+    {
+        uint8_t temp[32];
+        if (!Cvt::fromHex(temp, 32, prevHash, 64)) {
+            return false;
+        }
+        // Reverse bytes: display order -> internal order
+        for (int i = 0; i < 32; ++i) {
+            m_blob[pos + i] = temp[31 - i];
+        }
+    }
+    pos += 32;
+
+    // Parse merkleRoot (32 bytes) - must reverse from display to internal order
+    if (strlen(merkleRoot) != 64) {
+        return false;
+    }
+    {
+        uint8_t temp[32];
+        if (!Cvt::fromHex(temp, 32, merkleRoot, 64)) {
+            return false;
+        }
+        // Reverse bytes: display order -> internal order
+        for (int i = 0; i < 32; ++i) {
+            m_blob[pos + i] = temp[31 - i];
+        }
+    }
+    pos += 32;
+
+    // Parse blockCommitments (32 bytes) - must reverse from display to internal order
+    if (strlen(blockCommitments) != 64) {
+        return false;
+    }
+    {
+        uint8_t temp[32];
+        if (!Cvt::fromHex(temp, 32, blockCommitments, 64)) {
+            return false;
+        }
+        // Reverse bytes: display order -> internal order
+        for (int i = 0; i < 32; ++i) {
+            m_blob[pos + i] = temp[31 - i];
+        }
+    }
+    pos += 32;
+
+    // Add time (4 bytes, little-endian)
+    memcpy(m_blob + pos, &time, 4);
+    pos += 4;
+
+    // Parse bits (4 bytes, little-endian)
+    uint32_t nBits = static_cast<uint32_t>(strtoul(bits, nullptr, 16));
+    memcpy(m_blob + pos, &nBits, 4);
+    pos += 4;
+
+    // pos should now be 108 (the nonce offset for RX_JUNO)
+    // The 32-byte nonce will be at offset 108
+    // Total blob size for mining will be 140 bytes (108 + 32)
+
+    m_size = 140; // Full size including space for 32-byte nonce
+
+    // Generate rawBlob from the constructed blob
+#   ifdef XMRIG_PROXY_PROJECT
+    memset(m_rawBlob, 0, sizeof(m_rawBlob));
+    Cvt::toHex(m_rawBlob, sizeof(m_rawBlob), m_blob, m_size);
+#   endif
+
+    return true;
+}
+
+
 bool xmrig::Job::setSeedHash(const char *hash)
 {
     if (!hash || (strlen(hash) != kMaxSeedSize * 2)) {
@@ -167,6 +280,11 @@ size_t xmrig::Job::nonceOffset() const
 
     if (algorithm() == Algorithm::RX_YADA) {
         return 147;
+    }
+
+    // Juno Cash: 32-byte nonce at offset 108
+    if (algorithm() == Algorithm::RX_JUNO) {
+        return 108;
     }
 
     return 39;
@@ -252,6 +370,14 @@ void xmrig::Job::copy(const Job &other)
 
     memcpy(m_rawBlob, other.m_rawBlob, sizeof(m_rawBlob));
     memcpy(m_rawTarget, other.m_rawTarget, sizeof(m_rawTarget));
+
+    // Zcash-style job data for rx/juno
+    memcpy(m_rawVersion, other.m_rawVersion, sizeof(m_rawVersion));
+    memcpy(m_rawPrevHash, other.m_rawPrevHash, sizeof(m_rawPrevHash));
+    memcpy(m_rawMerkleRoot, other.m_rawMerkleRoot, sizeof(m_rawMerkleRoot));
+    memcpy(m_rawBlockCommitments, other.m_rawBlockCommitments, sizeof(m_rawBlockCommitments));
+    memcpy(m_rawTime, other.m_rawTime, sizeof(m_rawTime));
+    memcpy(m_rawBits, other.m_rawBits, sizeof(m_rawBits));
 #   endif
 
 #   ifdef XMRIG_FEATURE_BENCHMARK
@@ -307,6 +433,14 @@ void xmrig::Job::move(Job &&other)
 
     memcpy(m_rawBlob, other.m_rawBlob, sizeof(m_rawBlob));
     memcpy(m_rawTarget, other.m_rawTarget, sizeof(m_rawTarget));
+
+    // Zcash-style job data for rx/juno
+    memcpy(m_rawVersion, other.m_rawVersion, sizeof(m_rawVersion));
+    memcpy(m_rawPrevHash, other.m_rawPrevHash, sizeof(m_rawPrevHash));
+    memcpy(m_rawMerkleRoot, other.m_rawMerkleRoot, sizeof(m_rawMerkleRoot));
+    memcpy(m_rawBlockCommitments, other.m_rawBlockCommitments, sizeof(m_rawBlockCommitments));
+    memcpy(m_rawTime, other.m_rawTime, sizeof(m_rawTime));
+    memcpy(m_rawBits, other.m_rawBits, sizeof(m_rawBits));
 #   endif
 
 #   ifdef XMRIG_FEATURE_BENCHMARK

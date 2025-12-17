@@ -61,6 +61,8 @@ public:
     bool setBlob(const char *blob);
     bool setSeedHash(const char *hash);
     bool setTarget(const char *target);
+    bool setZcashJob(const char *version, const char *prevHash, const char *merkleRoot,
+                     const char *blockCommitments, uint32_t time, const char *bits);
     size_t nonceOffset() const;
     void setDiff(uint64_t diff);
     void setSigKey(const char *sig_key);
@@ -76,7 +78,7 @@ public:
     inline const String &poolWallet() const             { return m_poolWallet; }
     inline const uint32_t *nonce() const                { return reinterpret_cast<const uint32_t*>(m_blob + nonceOffset()); }
     inline const uint8_t *blob() const                  { return m_blob; }
-    inline size_t nonceSize() const                     { return (algorithm().family() == Algorithm::KAWPOW) ?  8 :  4; }
+    inline size_t nonceSize() const                     { if (algorithm() == Algorithm::RX_JUNO) return 32; return (algorithm().family() == Algorithm::KAWPOW) ?  8 :  4; }
     inline size_t size() const                          { return m_size; }
     inline uint32_t *nonce()                            { return reinterpret_cast<uint32_t*>(m_blob + nonceOffset()); }
     inline uint32_t backend() const                     { return m_backend; }
@@ -103,6 +105,14 @@ public:
     inline const char *rawTarget() const                { return m_rawTarget; }
     inline const String &rawSeedHash() const            { return m_rawSeedHash; }
     inline const String &rawSigKey() const              { return m_rawSigKey; }
+    // Zcash-style job data for rx/juno (mining.notify params)
+    inline bool isZcashJob() const                      { return algorithm() == Algorithm::RX_JUNO; }
+    inline const char *rawVersion() const               { return m_rawVersion; }
+    inline const char *rawPrevHash() const              { return m_rawPrevHash; }
+    inline const char *rawMerkleRoot() const            { return m_rawMerkleRoot; }
+    inline const char *rawBlockCommitments() const      { return m_rawBlockCommitments; }
+    inline const char *rawTime() const                  { return m_rawTime; }
+    inline const char *rawBits() const                  { return m_rawBits; }
 #   endif
 
     static inline uint64_t toDiff(uint64_t target)      { return target ? (0xFFFFFFFFFFFFFFFFULL / target) : 0; }
@@ -167,6 +177,13 @@ private:
     char m_rawTarget[24]{};
     String m_rawSeedHash;
     String m_rawSigKey;
+    // Zcash-style job data for rx/juno
+    char m_rawVersion[16]{};
+    char m_rawPrevHash[72]{};
+    char m_rawMerkleRoot[72]{};
+    char m_rawBlockCommitments[72]{};
+    char m_rawTime[16]{};
+    char m_rawBits[16]{};
 
     // Miner signatures
     uint8_t m_spendSecretKey[32]{};
