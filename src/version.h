@@ -19,13 +19,13 @@
 #ifndef XMRIG_VERSION_H
 #define XMRIG_VERSION_H
 
-#define APP_ID        "xmrig-proxy"
-#define APP_NAME      "xmrig-proxy"
-#define APP_DESC      "XMRig Stratum proxy"
-#define APP_VERSION   "6.24.0"
-#define APP_DOMAIN    "xmrig.com"
-#define APP_SITE      "www.xmrig.com"
-#define APP_COPYRIGHT "Copyright (C) 2016-2025 xmrig.com"
+#define APP_ID        "juno-xmrig-proxy"
+#define APP_NAME      "juno-xmrig-proxy"
+#define APP_DESC      "Juno XMRig Stratum proxy"
+#define APP_VERSION   "6.24.0-juno.1"
+#define APP_DOMAIN    "juno.cash"
+#define APP_SITE      "www.juno.cash"
+#define APP_COPYRIGHT "Copyright (C) 2016-2025 xmrig.com (c) 2025+ juno.cash"
 #define APP_KIND      "proxy"
 
 #define APP_VER_MAJOR  6
