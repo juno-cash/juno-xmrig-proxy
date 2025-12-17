@@ -87,7 +87,7 @@ public:
     inline uint64_t nonceMask() const                   { return isNicehash() ? 0xFFFFFFULL : (nonceSize() == sizeof(uint64_t) ? (static_cast<uint64_t>(-1LL) >> (extraNonce().size() * 4)) : 0xFFFFFFFFULL); }
     inline uint64_t target() const                      { return m_target; }
     inline uint8_t *blob()                              { return m_blob; }
-    inline uint8_t fixedByte() const                    { return *(m_blob + 42); }
+    inline uint8_t fixedByte() const                    { return *(m_blob + nonceOffset() + (algorithm() == Algorithm::RX_JUNO ? 7 : 3)); }
     inline uint8_t index() const                        { return m_index; }
     inline void reset()                                 { m_size = 0; m_diff = 0; }
     inline void setAlgorithm(const Algorithm::Id id)    { m_algorithm = id; }

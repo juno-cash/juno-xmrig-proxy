@@ -55,13 +55,14 @@ bool xmrig::JobResult::isCompatible(uint8_t fixedByte) const
 
     const size_t nonceLen = strlen(nonce);
 
-    // For 32-byte nonces (rx/juno), check first byte for miner ID
+    // For 32-byte nonces (rx/juno), check byte 7 (8th byte) for miner ID
+    // This matches the position set in Miner::setJob() for RX_JUNO
     if (nonceLen == 64) {
         uint8_t n[32];
         if (!Cvt::fromHex(n, sizeof(n), nonce, 64)) {
             return false;
         }
-        return n[0] == fixedByte;
+        return n[7] == fixedByte;
     }
 
     // Standard 4-byte nonce check

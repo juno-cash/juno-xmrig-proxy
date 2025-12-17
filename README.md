@@ -94,12 +94,54 @@ Misc:
       --dry-run                 test configuration and exit
 ```
 
-## Donations
+## Juno Cash (rx/juno) Support
 
-The default donation fee is 2%, which can be reduced to 1% or completely disabled using the `donate-level` option. This fee applies only when you utilize more than 256 miners.
+This fork adds support for Juno Cash mining using the rx/juno algorithm.
 
-* XMR: `48edfHu7V9Z84YzzMa6fUueoELZ9ZRXq9VetWzYGzKt52XU5xvqgzYnDK9URnRoJMk1j8nLwEVsaSWJ4fhdUyZijBGUicoD`
+### Pool Mining
 
-## Contacts
-* support@xmrig.com
-* [X](https://x.com/xmrig_dev)
+Connect to a Juno mining pool:
+
+```bash
+./xmrig-proxy -o pool.example.com:3333 -u YOUR_WALLET_ADDRESS -p x -a rx/juno -b 0.0.0.0:3334
+```
+
+Then point your [juno-xmrig](https://github.com/user/juno-xmrig) miners at the proxy:
+
+```bash
+./xmrig -o 127.0.0.1:3334 -u x -p x -a rx/juno
+```
+
+### Solo/Daemon Mining
+
+For solo mining, the proxy connects directly to a Juno node's RPC interface:
+
+```bash
+./xmrig-proxy -o 127.0.0.1:28285 --daemon -a rx/juno -u rpcuser -p rpcpass -b 0.0.0.0:3334
+```
+
+**Important:** In daemon mode, `-u` and `-p` are RPC authentication credentials, not wallet addresses. The mining reward address is configured on the Juno daemon itself (via `-mineraddress` or config file).
+
+#### Daemon Configuration
+
+On the Juno node:
+```bash
+junod -server -rpcuser=rpcuser -rpcpassword=rpcpass -mineraddress=YOUR_WALLET_ADDRESS
+```
+
+Optional: Enable ZMQ for faster block notifications:
+```bash
+# On the daemon
+junod -zmqpubhashblock=tcp://0.0.0.0:28332 ...
+
+# On the proxy
+./xmrig-proxy -o 127.0.0.1:28285 --daemon --daemon-zmq-port=28332 -a rx/juno -b 0.0.0.0:3334
+```
+
+### Proxy Modes
+
+- **nicehash** (default): Partitions nonce space among miners using a fixed byte. Recommended for multiple miners.
+- **simple**: All miners share the same job. Use `-m simple` if you have only one miner.
+
+For rx/juno's 32-byte nonce, the proxy uses byte 7 for partitioning (supporting up to 256 concurrent miners per job).
+

@@ -149,7 +149,10 @@ void xmrig::Miner::setJob(Job &job, int64_t extra_nonce)
 
     if (hasExtension(EXT_NICEHASH)) {
         snprintf(m_sendBuf, 4, "%02hhx", m_fixedByte);
-        memcpy(job.rawBlob() + (job.nonceOffset() + 3) * 2, m_sendBuf, 2);
+        // For RX_JUNO with 32-byte nonce, set fixed byte at position 7 (8th byte)
+        // For standard 4-byte nonce, set at position 3 (4th byte)
+        const size_t fixedByteOffset = (job.algorithm() == Algorithm::RX_JUNO) ? 7 : 3;
+        memcpy(job.rawBlob() + (job.nonceOffset() + fixedByteOffset) * 2, m_sendBuf, 2);
     }
 
     m_diff = job.diff();
