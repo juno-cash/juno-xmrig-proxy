@@ -22,7 +22,7 @@
 #define APP_ID        "juno-xmrig-proxy"
 #define APP_NAME      "juno-xmrig-proxy"
 #define APP_DESC      "Juno XMRig Stratum proxy"
-#define APP_VERSION   "6.24.0-juno.1"
+#define APP_VERSION   "6.24.0-juno.5"
 #define APP_DOMAIN    "juno.cash"
 #define APP_SITE      "www.juno.cash"
 #define APP_COPYRIGHT "Copyright (C) 2016-2025 xmrig.com (c) 2025+ juno.cash"
